@@ -1,0 +1,22 @@
+services:
+  # ── Signaling Server (Node.js) ─────────────────────────────────────────
+  - type: web
+    name: nexmeet-server
+    env: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 10000
+
+  # ── Frontend (Static Site) ─────────────────────────────────────────────
+  - type: web
+    name: nexmeet-client
+    env: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_SIGNALING_SERVER
+        value: https://nexmeet-server.onrender.com  # update after first deploy
