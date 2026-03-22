@@ -4,81 +4,153 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
+
 app.use(express.json());
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
   },
+  transports: ["websocket", "polling"],
 });
 
-// roomId -> Set of socketIds
+// roomId -> Set(socketIds)
 const rooms = new Map();
 
-app.get("/health", (req, res) => res.json({ status: "ok" }));
+app.get("/", (req, res) => {
+  res.send("WebRTC Signaling Server Running");
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
 
 io.on("connection", (socket) => {
-  console.log(`[+] Connected: ${socket.id}`);
+  console.log("Connected:", socket.id);
 
-  // ── Join Room ──────────────────────────────────────────────────────────────
+  // =========================
+  // JOIN ROOM
+  // =========================
+
   socket.on("join-room", ({ roomId }) => {
     if (!roomId) return;
 
-    // Leave any previous room
-    socket.rooms.forEach((r) => {
-      if (r !== socket.id) {
-        socket.leave(r);
-        const set = rooms.get(r);
+    console.log(`Join request ${socket.id} -> ${roomId}`);
+
+    // leave old rooms
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        socket.leave(room);
+
+        const set = rooms.get(room);
         if (set) {
           set.delete(socket.id);
-          if (set.size === 0) rooms.delete(r);
+          if (set.size === 0) {
+            rooms.delete(room);
+          }
         }
       }
     });
 
+    // join new room
     socket.join(roomId);
     socket.data.roomId = roomId;
 
-    if (!rooms.has(roomId)) rooms.set(roomId, new Set());
+    if (!rooms.has(roomId)) {
+      rooms.set(roomId, new Set());
+    }
+
     rooms.get(roomId).add(socket.id);
 
-    // Tell the new peer who else is already in the room
-    const peers = [...rooms.get(roomId)].filter((id) => id !== socket.id);
+    const peers = [...rooms.get(roomId)].filter(
+      (id) => id !== socket.id
+    );
+
+    // send existing peers to new user
     socket.emit("room-peers", { peers });
 
-    // Tell existing peers about the newcomer
-    socket.to(roomId).emit("peer-joined", { peerId: socket.id });
+    // notify others
+    socket.to(roomId).emit("peer-joined", {
+      peerId: socket.id,
+    });
 
-    console.log(`[room:${roomId}] ${socket.id} joined. peers: ${peers.length}`);
+    console.log(
+      `Room ${roomId} -> ${rooms.get(roomId).size} users`
+    );
   });
 
-  // ── WebRTC Signaling ───────────────────────────────────────────────────────
+  // =========================
+  // OFFER
+  // =========================
+
   socket.on("offer", ({ to, offer }) => {
-    io.to(to).emit("offer", { from: socket.id, offer });
+    io.to(to).emit("offer", {
+      from: socket.id,
+      offer,
+    });
   });
+
+  // =========================
+  // ANSWER
+  // =========================
 
   socket.on("answer", ({ to, answer }) => {
-    io.to(to).emit("answer", { from: socket.id, answer });
+    io.to(to).emit("answer", {
+      from: socket.id,
+      answer,
+    });
   });
+
+  // =========================
+  // ICE
+  // =========================
 
   socket.on("ice-candidate", ({ to, candidate }) => {
-    io.to(to).emit("ice-candidate", { from: socket.id, candidate });
+    io.to(to).emit("ice-candidate", {
+      from: socket.id,
+      candidate,
+    });
   });
 
-  // ── Disconnect ─────────────────────────────────────────────────────────────
+  // =========================
+  // DISCONNECT
+  // =========================
+
   socket.on("disconnect", () => {
+    console.log("Disconnected:", socket.id);
+
     const roomId = socket.data.roomId;
-    if (roomId && rooms.has(roomId)) {
-      rooms.get(roomId).delete(socket.id);
-      if (rooms.get(roomId).size === 0) rooms.delete(roomId);
-      io.to(roomId).emit("peer-left", { peerId: socket.id });
+
+    if (!roomId) return;
+
+    const set = rooms.get(roomId);
+
+    if (!set) return;
+
+    set.delete(socket.id);
+
+    socket.to(roomId).emit("peer-left", {
+      peerId: socket.id,
+    });
+
+    if (set.size === 0) {
+      rooms.delete(roomId);
     }
-    console.log(`[-] Disconnected: ${socket.id}`);
   });
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => console.log(`Signaling server running on :${PORT}`));
+
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});

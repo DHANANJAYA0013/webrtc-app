@@ -16,15 +16,25 @@ export default function App() {
 
   return (
     <div className="app">
-      {isInCall ? (
+      {!isInCall && (
+        <Lobby
+          onJoin={(room) => {
+            if (!room || !room.trim()) return;
+            startCall(room.trim());
+          }}
+          error={error}
+        />
+      )}
+
+      {isInCall && (
         <Room
           localStream={localStream}
           remoteStreams={remoteStreams}
           roomId={roomId}
-          onLeave={leaveCall}
+          onLeave={() => {
+            leaveCall();
+          }}
         />
-      ) : (
-        <Lobby onJoin={startCall} error={error} />
       )}
     </div>
   );
