@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
 
-export default function VideoTile({ stream, label, isLocal = false, peerId }) {
+export default function VideoTile({
+  stream,
+  label,
+  isLocal = false,
+  peerId,
+  isVideoEnabled = true,
+  isAudioEnabled = true,
+  isScreenSharing = false,
+}) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -12,26 +20,37 @@ export default function VideoTile({ stream, label, isLocal = false, peerId }) {
   const shortId = peerId ? peerId.slice(0, 6) : null;
   const videoTrack = stream?.getVideoTracks?.()[0];
   const trackSettings = videoTrack?.getSettings?.() || {};
-  const isScreenShare =
+  const isTrackScreenShare =
     Boolean(trackSettings.displaySurface) ||
     /screen|display|window/i.test(videoTrack?.label || "");
+  const shouldShowVideo = isVideoEnabled && Boolean(videoTrack);
 
   return (
     <div
       className={`video-tile ${isLocal ? "local" : "remote"} ${
-        isScreenShare ? "screen-share" : ""
+        isScreenSharing || isTrackScreenShare ? "screen-share" : ""
       }`}
     >
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={isLocal}
-        className="video-el"
-      />
+      {shouldShowVideo ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          className="video-el"
+        />
+      ) : (
+        <div className="video-placeholder">
+          <span className="avatar-circle">
+            {(label || shortId || "U").slice(0, 1).toUpperCase()}
+          </span>
+          <p>Camera Off</p>
+        </div>
+      )}
       <div className="video-label">
         <span className="label-dot" />
         {label || (shortId ? `Peer · ${shortId}` : "Unknown")}
+        {!isAudioEnabled && <span className="muted-chip">Muted</span>}
       </div>
     </div>
   );

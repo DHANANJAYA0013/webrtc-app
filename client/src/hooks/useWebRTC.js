@@ -24,10 +24,19 @@ export function useWebRTC() {
   const [isInCall, setIsInCall] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [error, setError] = useState("");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [mediaStateByPeer, setMediaStateByPeer] = useState({});
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [selfId, setSelfId] = useState("");
 
   const socketRef = useRef(null);
   const peerConnectionsRef = useRef({});
   const localStreamRef = useRef(null);
+  const cameraVideoTrackRef = useRef(null);
+  const activeVideoTrackRef = useRef(null);
+  const screenVideoTrackRef = useRef(null);
 
   // ================= SOCKET =================
 
@@ -38,9 +47,10 @@ export function useWebRTC() {
 
     socketRef.current = socket;
 
-    socket.on("connect", () =>
-      console.log("socket connected", socket.id)
-    );
+    socket.on("connect", () => {
+      console.log("socket connected", socket.id);
+      setSelfId(socket.id);
+    });
 
     socket.on("room-peers", ({ peers }) => {
       peers.forEach((peerId) => {
@@ -94,6 +104,26 @@ export function useWebRTC() {
 
     socket.on("peer-left", ({ peerId }) => {
       closePeer(peerId);
+      setMediaStateByPeer((prev) => {
+        const next = { ...prev };
+        delete next[peerId];
+        return next;
+      });
+    });
+
+    socket.on("chat-message", (message) => {
+      setChatMessages((prev) => [...prev, message]);
+    });
+
+    socket.on("media-state", ({ from, state }) => {
+      setMediaStateByPeer((prev) => ({
+        ...prev,
+        [from]: {
+          videoEnabled: state.videoEnabled,
+          audioEnabled: state.audioEnabled,
+          isScreenSharing: state.isScreenSharing,
+        },
+      }));
     });
 
     return () => socket.disconnect();
@@ -178,6 +208,44 @@ export function useWebRTC() {
     );
   }, []);
 
+  const replaceVideoTrack = useCallback((nextTrack) => {
+    Object.values(peerConnectionsRef.current).forEach((pc) => {
+      const sender = pc
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
+
+      if (sender) {
+        sender.replaceTrack(nextTrack);
+      }
+    });
+
+    const audioTracks = localStreamRef.current?.getAudioTracks?.() || [];
+    const currentAudioTrack = audioTracks[0] || null;
+
+    const updatedTracks = [nextTrack].filter(Boolean);
+    if (currentAudioTrack) {
+      updatedTracks.push(currentAudioTrack);
+    }
+
+    const updatedStream = new MediaStream(updatedTracks);
+    localStreamRef.current = updatedStream;
+    setLocalStream(updatedStream);
+    activeVideoTrackRef.current = nextTrack;
+  }, []);
+
+  const emitLocalMediaState = useCallback(
+    (nextState) => {
+      const currentRoom = roomId || "";
+      if (!socketRef.current || !currentRoom) return;
+
+      socketRef.current.emit("media-state", {
+        roomId: currentRoom,
+        state: nextState,
+      });
+    },
+    [roomId]
+  );
+
   // ================= START =================
 
   const startCall = useCallback(async (room) => {
@@ -189,21 +257,160 @@ export function useWebRTC() {
         });
 
       localStreamRef.current = stream;
+      cameraVideoTrackRef.current = stream.getVideoTracks()[0] || null;
+      activeVideoTrackRef.current = cameraVideoTrackRef.current;
+      screenVideoTrackRef.current = null;
       setLocalStream(stream);
       setRoomId(room);
       setIsInCall(true);
+      setChatMessages([]);
+      setMediaStateByPeer({});
+      setIsVideoEnabled(true);
+      setIsAudioEnabled(true);
+      setIsScreenSharing(false);
 
       socketRef.current.emit("join-room", {
         roomId: room,
+      });
+
+      socketRef.current.emit("media-state", {
+        roomId: room,
+        state: {
+          videoEnabled: true,
+          audioEnabled: true,
+          isScreenSharing: false,
+        },
       });
     } catch (err) {
       setError(err.message);
     }
   }, []);
 
+  const sendChatMessage = useCallback(
+    (text) => {
+      const trimmed = text.trim();
+      if (!trimmed || !socketRef.current || !roomId) return;
+
+      socketRef.current.emit("chat-message", {
+        roomId,
+        message: {
+          text: trimmed,
+          senderName: "You",
+          createdAt: Date.now(),
+        },
+      });
+    },
+    [roomId]
+  );
+
+  const toggleVideo = useCallback(() => {
+    const next = !isVideoEnabled;
+    const activeTrack = activeVideoTrackRef.current;
+    if (activeTrack) {
+      activeTrack.enabled = next;
+    }
+
+    if (cameraVideoTrackRef.current) {
+      cameraVideoTrackRef.current.enabled = next;
+    }
+
+    setIsVideoEnabled(next);
+    emitLocalMediaState({
+      videoEnabled: next,
+      audioEnabled: isAudioEnabled,
+      isScreenSharing,
+    });
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled]);
+
+  const toggleAudio = useCallback(() => {
+    const next = !isAudioEnabled;
+    const audioTracks = localStreamRef.current?.getAudioTracks?.() || [];
+    const audioTrack = audioTracks[0] || null;
+    if (audioTrack) {
+      audioTrack.enabled = next;
+    }
+
+    setIsAudioEnabled(next);
+    emitLocalMediaState({
+      videoEnabled: isVideoEnabled,
+      audioEnabled: next,
+      isScreenSharing,
+    });
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled]);
+
+  const stopScreenShare = useCallback(() => {
+    if (!isScreenSharing) return;
+
+    const cameraTrack = cameraVideoTrackRef.current;
+    if (!cameraTrack) return;
+
+    cameraTrack.enabled = isVideoEnabled;
+    replaceVideoTrack(cameraTrack);
+
+    if (screenVideoTrackRef.current) {
+      screenVideoTrackRef.current.onended = null;
+      screenVideoTrackRef.current.stop();
+      screenVideoTrackRef.current = null;
+    }
+
+    setIsScreenSharing(false);
+    emitLocalMediaState({
+      videoEnabled: isVideoEnabled,
+      audioEnabled: isAudioEnabled,
+      isScreenSharing: false,
+    });
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, replaceVideoTrack]);
+
+  const startScreenShare = useCallback(async () => {
+    if (isScreenSharing) return;
+
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+
+      const screenTrack = displayStream.getVideoTracks()[0];
+      if (!screenTrack) return;
+
+      screenTrack.enabled = isVideoEnabled;
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+
+      screenVideoTrackRef.current = screenTrack;
+      replaceVideoTrack(screenTrack);
+      setIsScreenSharing(true);
+
+      emitLocalMediaState({
+        videoEnabled: isVideoEnabled,
+        audioEnabled: isAudioEnabled,
+        isScreenSharing: true,
+      });
+    } catch (err) {
+      console.log("Screen share cancelled or failed", err);
+    }
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, replaceVideoTrack, stopScreenShare]);
+
+  const toggleScreenShare = useCallback(() => {
+    if (isScreenSharing) {
+      stopScreenShare();
+      return;
+    }
+
+    startScreenShare();
+  }, [isScreenSharing, startScreenShare, stopScreenShare]);
+
   // ================= LEAVE =================
 
   const leaveCall = useCallback(() => {
+    socketRef.current?.emit("leave-room");
+
+    if (screenVideoTrackRef.current) {
+      screenVideoTrackRef.current.onended = null;
+      screenVideoTrackRef.current.stop();
+      screenVideoTrackRef.current = null;
+    }
+
     localStreamRef.current?.getTracks().forEach((t) =>
       t.stop()
     );
@@ -216,15 +423,32 @@ export function useWebRTC() {
     setLocalStream(null);
     setIsInCall(false);
     setRoomId("");
+    setChatMessages([]);
+    setMediaStateByPeer({});
+    setIsVideoEnabled(true);
+    setIsAudioEnabled(true);
+    setIsScreenSharing(false);
+    cameraVideoTrackRef.current = null;
+    activeVideoTrackRef.current = null;
   }, []);
 
   return {
+    selfId,
     localStream,
     remoteStreams,
+    chatMessages,
+    mediaStateByPeer,
     isInCall,
     roomId,
     error,
+    isVideoEnabled,
+    isAudioEnabled,
+    isScreenSharing,
     startCall,
+    sendChatMessage,
+    toggleVideo,
+    toggleAudio,
+    toggleScreenShare,
     leaveCall,
   };
 }

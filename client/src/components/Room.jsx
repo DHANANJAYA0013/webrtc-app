@@ -1,76 +1,153 @@
+import { useState } from "react";
 import VideoTile from "./VideoTile";
+import ChatBox from "./ChatBox";
+import Controls from "./Controls";
+import "../index.css";
 
-export default function Room({ localStream, remoteStreams, roomId, onLeave }) {
+export default function Room({
+  localStream,
+  remoteStreams,
+  roomId,
+  onLeave,
+  chatMessages,
+  onSendChatMessage,
+  selfId,
+  mediaStateByPeer,
+  isVideoEnabled,
+  isAudioEnabled,
+  isScreenSharing,
+  onToggleVideo,
+  onToggleAudio,
+  onToggleScreenShare,
+}) {
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const peerCount = remoteStreams.length;
 
   const gridClass =
-    peerCount === 0
-      ? "grid-solo"
-      : peerCount === 1
-      ? "grid-solo"
+    peerCount <= 1
+      ? "grid-cols-1"
       : peerCount <= 4
-      ? "grid-trio"
+      ? "grid-cols-2"
       : peerCount <= 6
-      ? "grid-six"
-      : "grid-nine";
+      ? "grid-cols-3"
+      : "grid-cols-3";
 
   return (
-    <div className="room">
-      {/* Header */}
-      <header className="room-header">
-        <div className="room-brand">
-          <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="23" stroke="currentColor" strokeWidth="2.5" />
-            <path d="M14 20C14 18.343 15.343 17 17 17H25C26.657 17 28 18.343 28 20V28C28 29.657 26.657 31 25 31H17C15.343 31 14 29.657 14 28V20Z" stroke="currentColor" strokeWidth="2.5" />
-            <path d="M28 22L34 19V29L28 26V22Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
-          </svg>
-          <span>NexMeet</span>
+    <div className="flex flex-col h-screen bg-gray-950 text-white">
+
+      {/* HEADER */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800/90 bg-gray-900/95 backdrop-blur">
+
+        {/* BRAND */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-300/30 bg-emerald-400/10 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.2)]">
+            <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
+              <circle cx="24" cy="24" r="23" stroke="currentColor" strokeWidth="2.5" />
+              <path d="M14 20C14 18.343 15.343 17 17 17H25C26.657 17 28 18.343 28 20V28C28 29.657 26.657 31 25 31H17C15.343 31 14 29.657 14 28V20Z" stroke="currentColor" strokeWidth="2.5" />
+              <path d="M28 22L34 19V29L28 26V22Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+            </svg>
+          </div>
+
+          <div className="flex flex-col leading-tight">
+            <span className="text-lg font-semibold tracking-tight text-white">NexMeet</span>
+            <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-300/80">Live Session</span>
+          </div>
         </div>
 
-        <div className="room-info">
-          <span className="room-badge">
-            <span className="live-dot" />
+        {/* ROOM INFO */}
+        <div className="flex items-center gap-3 text-sm">
+
+          <span className="flex items-center gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]">
+            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
             LIVE
           </span>
-          <span className="room-id-tag">Room: {roomId}</span>
-          <span className="peer-count">
+
+          <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
+            Room: {roomId}
+          </span>
+
+          <span className="rounded-full border border-gray-700 bg-gray-800/80 px-3 py-1 text-gray-300">
             {peerCount + 1} participant{peerCount !== 0 ? "s" : ""}
           </span>
-        </div>
 
-        <button className="btn-leave" onClick={onLeave}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          Leave
-        </button>
+        </div>
       </header>
 
-      {/* Remote Streams */}
-      <main className="streams-area">
-        {peerCount === 0 ? (
-          <div className="waiting-state">
-            <div className="waiting-pulse" />
-            <p>Waiting for others to join…</p>
-            <p className="waiting-hint">Share room ID <strong>{roomId}</strong> with your friends</p>
-          </div>
-        ) : (
-          <section className="remote-section">
-            <div className={`remote-grid ${gridClass}`}>
+      {/* MAIN AREA */}
+      <main className="flex flex-1 overflow-hidden">
+
+        {/* VIDEO AREA */}
+        <section className="flex-1 p-6 overflow-auto">
+
+          {peerCount === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
+
+              <div className="w-14 h-14 rounded-full border-4 border-gray-700 border-t-indigo-500 animate-spin mb-6"></div>
+
+              <p className="text-lg font-medium">
+                Waiting for others to join...
+              </p>
+
+              <p className="text-sm mt-2">
+                Share Room ID <span className="text-white font-semibold">{roomId}</span>
+              </p>
+
+            </div>
+          ) : (
+            <div className={`grid ${gridClass} gap-4`}>
               {remoteStreams.map(({ peerId, stream }) => (
-                <VideoTile key={peerId} stream={stream} peerId={peerId} />
+                <VideoTile
+                  key={peerId}
+                  stream={stream}
+                  peerId={peerId}
+                  isVideoEnabled={mediaStateByPeer[peerId]?.videoEnabled ?? true}
+                  isAudioEnabled={mediaStateByPeer[peerId]?.audioEnabled ?? true}
+                  isScreenSharing={mediaStateByPeer[peerId]?.isScreenSharing ?? false}
+                />
               ))}
             </div>
-          </section>
+          )}
+
+        </section>
+
+        {/* CHAT */}
+        {isChatOpen && (
+          <div className="w-80 border-l border-gray-800 bg-gray-900">
+            <ChatBox
+              isOpen={isChatOpen}
+              messages={chatMessages}
+              selfId={selfId}
+              onSend={onSendChatMessage}
+            />
+          </div>
         )}
       </main>
 
-      {/* Local Video (always pinned bottom-right) */}
-      <div className="local-pip">
-        <VideoTile stream={localStream} label="You" isLocal />
+      {/* LOCAL VIDEO */}
+      <div className="fixed bottom-24 right-6 w-60 rounded-xl overflow-hidden shadow-xl border border-gray-700">
+        <VideoTile
+          stream={localStream}
+          label="You"
+          isLocal
+          isVideoEnabled={isVideoEnabled}
+          isAudioEnabled={isAudioEnabled}
+          isScreenSharing={isScreenSharing}
+        />
       </div>
+
+      {/* CONTROLS */}
+      <Controls
+        isVideoEnabled={isVideoEnabled}
+        isAudioEnabled={isAudioEnabled}
+        isScreenSharing={isScreenSharing}
+        isChatOpen={isChatOpen}
+        onToggleVideo={onToggleVideo}
+        onToggleAudio={onToggleAudio}
+        onToggleScreenShare={onToggleScreenShare}
+        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        onLeave={onLeave}
+      />
+
     </div>
   );
 }

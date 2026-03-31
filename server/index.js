@@ -27,6 +27,26 @@ const io = new Server(server, {
 // roomId -> Set(socketIds)
 const rooms = new Map();
 
+function removeSocketFromRoom(socket, roomId) {
+  if (!roomId) return;
+
+  const set = rooms.get(roomId);
+  if (!set) return;
+
+  set.delete(socket.id);
+  socket.leave(roomId);
+
+  socket.to(roomId).emit("peer-left", {
+    peerId: socket.id,
+  });
+
+  if (set.size === 0) {
+    rooms.delete(roomId);
+  }
+
+  socket.data.roomId = undefined;
+}
+
 app.get("/", (req, res) => {
   res.send("WebRTC Signaling Server Running");
 });
@@ -50,15 +70,7 @@ io.on("connection", (socket) => {
     // leave old rooms
     socket.rooms.forEach((room) => {
       if (room !== socket.id) {
-        socket.leave(room);
-
-        const set = rooms.get(room);
-        if (set) {
-          set.delete(socket.id);
-          if (set.size === 0) {
-            rooms.delete(room);
-          }
-        }
+        removeSocketFromRoom(socket, room);
       }
     });
 
@@ -87,6 +99,11 @@ io.on("connection", (socket) => {
     console.log(
       `Room ${roomId} -> ${rooms.get(roomId).size} users`
     );
+  });
+
+  socket.on("leave-room", () => {
+    const roomId = socket.data.roomId;
+    removeSocketFromRoom(socket, roomId);
   });
 
   // =========================
@@ -122,6 +139,35 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("chat-message", ({ roomId, message }) => {
+    if (!roomId || !message) return;
+
+    const payload = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: String(message.text || "").trim(),
+      senderId: socket.id,
+      senderName: message.senderName || `Peer ${socket.id.slice(0, 6)}`,
+      createdAt: message.createdAt || Date.now(),
+    };
+
+    if (!payload.text) return;
+
+    io.to(roomId).emit("chat-message", payload);
+  });
+
+  socket.on("media-state", ({ roomId, state }) => {
+    if (!roomId || !state) return;
+
+    socket.to(roomId).emit("media-state", {
+      from: socket.id,
+      state: {
+        videoEnabled: Boolean(state.videoEnabled),
+        audioEnabled: Boolean(state.audioEnabled),
+        isScreenSharing: Boolean(state.isScreenSharing),
+      },
+    });
+  });
+
   // =========================
   // DISCONNECT
   // =========================
@@ -130,22 +176,7 @@ io.on("connection", (socket) => {
     console.log("Disconnected:", socket.id);
 
     const roomId = socket.data.roomId;
-
-    if (!roomId) return;
-
-    const set = rooms.get(roomId);
-
-    if (!set) return;
-
-    set.delete(socket.id);
-
-    socket.to(roomId).emit("peer-left", {
-      peerId: socket.id,
-    });
-
-    if (set.size === 0) {
-      rooms.delete(roomId);
-    }
+    removeSocketFromRoom(socket, roomId);
   });
 });
 
