@@ -7,7 +7,7 @@ export default function Room({ localStream, remoteStreams, roomId, onLeave }) {
     peerCount === 0
       ? "grid-solo"
       : peerCount === 1
-      ? "grid-duo"
+      ? "grid-solo"
       : peerCount <= 4
       ? "grid-trio"
       : peerCount <= 6
