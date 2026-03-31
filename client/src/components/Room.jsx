@@ -8,9 +8,11 @@ export default function Room({ localStream, remoteStreams, roomId, onLeave }) {
       ? "grid-solo"
       : peerCount === 1
       ? "grid-duo"
-      : peerCount <= 3
+      : peerCount <= 4
       ? "grid-trio"
-      : "grid-multi";
+      : peerCount <= 6
+      ? "grid-six"
+      : "grid-nine";
 
   return (
     <div className="room">

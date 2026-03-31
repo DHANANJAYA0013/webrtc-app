@@ -320,8 +320,9 @@ body {
 
 .grid-solo  { grid-template-columns: 1fr; }
 .grid-duo   { grid-template-columns: repeat(2, 1fr); }
-.grid-trio  { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
-.grid-multi { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; }
+.grid-trio  { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.grid-six   { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.grid-nine  { grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(0, 1fr); }
 
 /* ── Waiting State ──────────────────────────────────────────────────────── */
 .waiting-state {
@@ -398,6 +399,7 @@ body {
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--border);
+  min-height: 0;
   animation: tileIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -411,7 +413,12 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
-  min-height: 140px;
+  min-height: 0;
+}
+
+.screen-share .video-el {
+  object-fit: contain;
+  background: #000;
 }
 
 .video-label {
@@ -447,5 +454,6 @@ body {
   .room-id-tag, .peer-count { display: none; }
   .local-pip { width: 130px; bottom: 0.75rem; right: 0.75rem; }
   .grid-duo   { grid-template-columns: 1fr; }
-  .grid-multi { grid-template-columns: repeat(2, 1fr); }
+  .grid-six,
+  .grid-nine { grid-template-columns: repeat(2, 1fr); }
 }
