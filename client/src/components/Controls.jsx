@@ -3,6 +3,7 @@ export default function Controls({
   isAudioEnabled,
   isScreenSharing,
   isChatOpen,
+  unreadCount = 0,
   onToggleVideo,
   onToggleAudio,
   onToggleScreenShare,
@@ -36,11 +37,16 @@ export default function Controls({
       </button>
 
       <button
-        className={`control-btn ${isChatOpen ? "active" : ""}`}
+        className={`control-btn chat-btn ${isChatOpen ? "active" : ""}`}
         onClick={onToggleChat}
         title="Toggle chat"
       >
         Chat
+        {unreadCount > 0 && (
+          <span className="chat-unread-badge">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
       </button>
 
       <button className="control-btn danger" onClick={onLeave} title="Leave call">

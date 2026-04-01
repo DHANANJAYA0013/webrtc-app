@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import VideoTile from "./VideoTile";
 import ChatBox from "./ChatBox";
 import Controls from "./Controls";
@@ -8,6 +8,7 @@ export default function Room({
   localStream,
   remoteStreams,
   roomId,
+  peerNames,
   onLeave,
   chatMessages,
   onSendChatMessage,
@@ -20,15 +21,46 @@ export default function Room({
   onToggleAudio,
   onToggleScreenShare,
 }) {
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const processedMessageCountRef = useRef(0);
   const peerCount = remoteStreams.length;
+
+  useEffect(() => {
+    if (!Array.isArray(chatMessages)) return;
+
+    const processedCount = processedMessageCountRef.current;
+    const nextMessages = chatMessages.slice(processedCount);
+
+    if (!isChatOpen && nextMessages.length > 0) {
+      const incomingCount = nextMessages.filter(
+        (message) => message?.senderId && message.senderId !== selfId
+      ).length;
+
+      if (incomingCount > 0) {
+        setUnreadChatCount((prev) => prev + incomingCount);
+      }
+    }
+
+    processedMessageCountRef.current = chatMessages.length;
+  }, [chatMessages, isChatOpen, selfId]);
+
+  const handleToggleChat = () => {
+    setIsChatOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setUnreadChatCount(0);
+      }
+      return next;
+    });
+  };
 
   const gridClass =
     peerCount <= 1
       ? "grid-cols-1"
       : peerCount <= 4
       ? "grid-cols-2"
-      : peerCount <= 6
+      : peerCount <= 9
       ? "grid-cols-3"
       : "grid-cols-3";
 
@@ -74,10 +106,10 @@ export default function Room({
       </header>
 
       {/* MAIN AREA */}
-      <main className="flex flex-1 overflow-hidden">
+      <main className="relative flex flex-1 min-h-0 overflow-hidden">
 
         {/* VIDEO AREA */}
-        <section className="flex-1 p-6 overflow-auto">
+        <section className="flex-1 min-w-0 min-h-0 p-6 overflow-hidden">
 
           {peerCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
@@ -94,11 +126,12 @@ export default function Room({
 
             </div>
           ) : (
-            <div className={`grid ${gridClass} gap-4`}>
+            <div className={`grid h-full w-full auto-rows-fr ${gridClass} gap-4`}>
               {remoteStreams.map(({ peerId, stream }) => (
                 <VideoTile
                   key={peerId}
                   stream={stream}
+                  label={peerNames?.[peerId] || "Guest"}
                   peerId={peerId}
                   isVideoEnabled={mediaStateByPeer[peerId]?.videoEnabled ?? true}
                   isAudioEnabled={mediaStateByPeer[peerId]?.audioEnabled ?? true}
@@ -112,7 +145,7 @@ export default function Room({
 
         {/* CHAT */}
         {isChatOpen && (
-          <div className="w-80 border-l border-gray-800 bg-gray-900">
+          <div className="z-30 w-80 shrink-0 border-l border-gray-800 bg-gray-900">
             <ChatBox
               isOpen={isChatOpen}
               messages={chatMessages}
@@ -124,7 +157,11 @@ export default function Room({
       </main>
 
       {/* LOCAL VIDEO */}
-      <div className="fixed bottom-24 right-6 w-60 rounded-xl overflow-hidden shadow-xl border border-gray-700">
+      <div
+        className={`fixed bottom-24 z-20 w-60 rounded-xl overflow-hidden border border-gray-700 shadow-xl transition-all duration-200 ${
+          isChatOpen ? "right-[21.5rem]" : "right-6"
+        }`}
+      >
         <VideoTile
           stream={localStream}
           label="You"
@@ -141,10 +178,11 @@ export default function Room({
         isAudioEnabled={isAudioEnabled}
         isScreenSharing={isScreenSharing}
         isChatOpen={isChatOpen}
+        unreadCount={unreadChatCount}
         onToggleVideo={onToggleVideo}
         onToggleAudio={onToggleAudio}
         onToggleScreenShare={onToggleScreenShare}
-        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        onToggleChat={handleToggleChat}
         onLeave={onLeave}
       />
 

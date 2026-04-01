@@ -1,15 +1,19 @@
 import { useState } from "react";
 
 export default function Lobby({ onJoin, error }) {
-  const [input, setInput] = useState("");
+  const [roomInput, setRoomInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onJoin(input);
+    onJoin({
+      roomId: roomInput,
+      userName: nameInput,
+    });
   };
 
   const randomRoom = () => {
-    setInput(Math.random().toString(36).slice(2, 8).toUpperCase());
+    setRoomInput(Math.random().toString(36).slice(2, 8).toUpperCase());
   };
 
   return (
@@ -29,9 +33,20 @@ export default function Lobby({ onJoin, error }) {
           <div className="input-row">
             <input
               type="text"
+              placeholder="Enter your name…"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="room-input"
+              maxLength={40}
+            />
+          </div>
+
+          <div className="input-row">
+            <input
+              type="text"
               placeholder="Enter room ID…"
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
+              value={roomInput}
+              onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
               className="room-input"
               maxLength={20}
               autoFocus
@@ -48,7 +63,11 @@ export default function Lobby({ onJoin, error }) {
 
           {error && <p className="error-msg">{error}</p>}
 
-          <button type="submit" className="btn-primary" disabled={!input.trim()}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={!roomInput.trim() || !nameInput.trim()}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polygon points="23 7 16 12 23 17 23 7" />
               <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />

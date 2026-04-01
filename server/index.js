@@ -15,6 +15,7 @@ app.use(
 app.use(express.json());
 
 const server = http.createServer(app);
+const MAX_CHAT_HISTORY_PER_ROOM = 200;
 
 const io = new Server(server, {
   cors: {
@@ -26,6 +27,8 @@ const io = new Server(server, {
 
 // roomId -> Set(socketIds)
 const rooms = new Map();
+// roomId -> message[] (cleared when room becomes empty)
+const roomChatHistory = new Map();
 
 function removeSocketFromRoom(socket, roomId) {
   if (!roomId) return;
@@ -42,6 +45,7 @@ function removeSocketFromRoom(socket, roomId) {
 
   if (set.size === 0) {
     rooms.delete(roomId);
+    roomChatHistory.delete(roomId);
   }
 
   socket.data.roomId = undefined;
@@ -62,8 +66,11 @@ io.on("connection", (socket) => {
   // JOIN ROOM
   // =========================
 
-  socket.on("join-room", ({ roomId }) => {
+  socket.on("join-room", ({ roomId, name }) => {
     if (!roomId) return;
+
+    const participantName = String(name || "").trim() || "Guest";
+    socket.data.name = participantName;
 
     console.log(`Join request ${socket.id} -> ${roomId}`);
 
@@ -82,18 +89,30 @@ io.on("connection", (socket) => {
       rooms.set(roomId, new Set());
     }
 
+    if (!roomChatHistory.has(roomId)) {
+      roomChatHistory.set(roomId, []);
+    }
+
     rooms.get(roomId).add(socket.id);
 
-    const peers = [...rooms.get(roomId)].filter(
-      (id) => id !== socket.id
-    );
+    const peers = [...rooms.get(roomId)]
+      .filter((id) => id !== socket.id)
+      .map((id) => ({
+        peerId: id,
+        name: io.sockets.sockets.get(id)?.data?.name || "Guest",
+      }));
 
     // send existing peers to new user
     socket.emit("room-peers", { peers });
+    socket.emit("chat-history", {
+      roomId,
+      messages: roomChatHistory.get(roomId) || [],
+    });
 
     // notify others
     socket.to(roomId).emit("peer-joined", {
       peerId: socket.id,
+      name: participantName,
     });
 
     console.log(
@@ -140,19 +159,28 @@ io.on("connection", (socket) => {
   });
 
   socket.on("chat-message", ({ roomId, message }) => {
-    if (!roomId || !message) return;
+    const activeRoomId = socket.data.roomId || roomId;
+    if (!activeRoomId || !message) return;
 
     const payload = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: String(message.text || "").trim(),
       senderId: socket.id,
-      senderName: message.senderName || `Peer ${socket.id.slice(0, 6)}`,
+      senderName:
+        String(message.senderName || "").trim() || socket.data.name || "Guest",
       createdAt: message.createdAt || Date.now(),
     };
 
     if (!payload.text) return;
 
-    io.to(roomId).emit("chat-message", payload);
+    const history = roomChatHistory.get(activeRoomId) || [];
+    history.push(payload);
+    if (history.length > MAX_CHAT_HISTORY_PER_ROOM) {
+      history.splice(0, history.length - MAX_CHAT_HISTORY_PER_ROOM);
+    }
+    roomChatHistory.set(activeRoomId, history);
+
+    io.to(activeRoomId).emit("chat-message", payload);
   });
 
   socket.on("media-state", ({ roomId, state }) => {

@@ -30,6 +30,8 @@ export function useWebRTC() {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [selfId, setSelfId] = useState("");
+  const [selfName, setSelfName] = useState("");
+  const [peerNames, setPeerNames] = useState({});
 
   const socketRef = useRef(null);
   const peerConnectionsRef = useRef({});
@@ -53,12 +55,30 @@ export function useWebRTC() {
     });
 
     socket.on("room-peers", ({ peers }) => {
-      peers.forEach((peerId) => {
+      peers.forEach((peer) => {
+        const peerId = typeof peer === "string" ? peer : peer.peerId;
+        const name = typeof peer === "string" ? "" : peer.name || "";
+        if (!peerId) return;
+
+        if (name) {
+          setPeerNames((prev) => ({
+            ...prev,
+            [peerId]: name,
+          }));
+        }
+
         createPeer(peerId, true);
       });
     });
 
-    socket.on("peer-joined", ({ peerId }) => {
+    socket.on("peer-joined", ({ peerId, name }) => {
+      if (name) {
+        setPeerNames((prev) => ({
+          ...prev,
+          [peerId]: name,
+        }));
+      }
+
       createPeer(peerId, false);
     });
 
@@ -104,6 +124,11 @@ export function useWebRTC() {
 
     socket.on("peer-left", ({ peerId }) => {
       closePeer(peerId);
+      setPeerNames((prev) => {
+        const next = { ...prev };
+        delete next[peerId];
+        return next;
+      });
       setMediaStateByPeer((prev) => {
         const next = { ...prev };
         delete next[peerId];
@@ -113,6 +138,12 @@ export function useWebRTC() {
 
     socket.on("chat-message", (message) => {
       setChatMessages((prev) => [...prev, message]);
+    });
+
+    socket.on("chat-history", ({ messages }) => {
+      if (Array.isArray(messages)) {
+        setChatMessages(messages);
+      }
     });
 
     socket.on("media-state", ({ from, state }) => {
@@ -248,7 +279,7 @@ export function useWebRTC() {
 
   // ================= START =================
 
-  const startCall = useCallback(async (room) => {
+  const startCall = useCallback(async (room, userName) => {
     try {
       const stream =
         await navigator.mediaDevices.getUserMedia({
@@ -262,8 +293,10 @@ export function useWebRTC() {
       screenVideoTrackRef.current = null;
       setLocalStream(stream);
       setRoomId(room);
+      setSelfName(userName);
       setIsInCall(true);
       setChatMessages([]);
+      setPeerNames({});
       setMediaStateByPeer({});
       setIsVideoEnabled(true);
       setIsAudioEnabled(true);
@@ -271,6 +304,7 @@ export function useWebRTC() {
 
       socketRef.current.emit("join-room", {
         roomId: room,
+        name: userName,
       });
 
       socketRef.current.emit("media-state", {
@@ -295,12 +329,12 @@ export function useWebRTC() {
         roomId,
         message: {
           text: trimmed,
-          senderName: "You",
+          senderName: selfName || "Guest",
           createdAt: Date.now(),
         },
       });
     },
-    [roomId]
+    [roomId, selfName]
   );
 
   const toggleVideo = useCallback(() => {
@@ -423,7 +457,9 @@ export function useWebRTC() {
     setLocalStream(null);
     setIsInCall(false);
     setRoomId("");
+    setSelfName("");
     setChatMessages([]);
+    setPeerNames({});
     setMediaStateByPeer({});
     setIsVideoEnabled(true);
     setIsAudioEnabled(true);
@@ -434,8 +470,10 @@ export function useWebRTC() {
 
   return {
     selfId,
+    selfName,
     localStream,
     remoteStreams,
+    peerNames,
     chatMessages,
     mediaStateByPeer,
     isInCall,

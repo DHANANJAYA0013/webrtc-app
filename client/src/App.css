@@ -395,6 +395,8 @@ body {
 /* ── Video Tile ─────────────────────────────────────────────────────────── */
 .video-tile {
   position: relative;
+  width: 100%;
+  height: 100%;
   background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
@@ -591,6 +593,31 @@ body {
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.control-btn.chat-btn {
+  position: relative;
+  overflow: visible;
+}
+
+.chat-unread-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: #ff4d6a;
+  color: #ffffff;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
 }
 
 .control-btn:hover {

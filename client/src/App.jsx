@@ -6,8 +6,10 @@ import "./App.css";
 export default function App() {
   const {
     selfId,
+    selfName,
     localStream,
     remoteStreams,
+    peerNames,
     chatMessages,
     mediaStateByPeer,
     isInCall,
@@ -28,9 +30,9 @@ export default function App() {
     <div className="app">
       {!isInCall && (
         <Lobby
-          onJoin={(room) => {
-            if (!room || !room.trim()) return;
-            startCall(room.trim());
+          onJoin={({ roomId: room, userName }) => {
+            if (!room || !room.trim() || !userName || !userName.trim()) return;
+            startCall(room.trim(), userName.trim());
           }}
           error={error}
         />
@@ -41,9 +43,11 @@ export default function App() {
           localStream={localStream}
           remoteStreams={remoteStreams}
           roomId={roomId}
+          peerNames={peerNames}
           chatMessages={chatMessages}
           onSendChatMessage={sendChatMessage}
           selfId={selfId}
+          selfName={selfName}
           mediaStateByPeer={mediaStateByPeer}
           isVideoEnabled={isVideoEnabled}
           isAudioEnabled={isAudioEnabled}

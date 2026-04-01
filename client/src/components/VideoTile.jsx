@@ -12,10 +12,10 @@ export default function VideoTile({
   const videoRef = useRef(null);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
+    if (videoRef.current && stream && isVideoEnabled) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream]);
+  }, [stream, isVideoEnabled]);
 
   const shortId = peerId ? peerId.slice(0, 6) : null;
   const videoTrack = stream?.getVideoTracks?.()[0];
