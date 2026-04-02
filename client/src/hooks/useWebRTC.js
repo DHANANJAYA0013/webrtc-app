@@ -30,6 +30,7 @@ export function useWebRTC() {
   const localStreamRef = useRef(null);
   const remoteMediaStreamsRef = useRef({});
   const consumedProducerIdsRef = useRef(new Set());
+  const pendingProducersRef = useRef([]);
   const consumersRef = useRef(new Map());
   const producersRef = useRef({ audio: null, video: null });
   const roomIdRef = useRef("");
@@ -179,10 +180,54 @@ export function useWebRTC() {
       } catch (err) {
         consumedProducerIdsRef.current.delete(producerId);
         console.log("consume producer error", err);
+        setError(`Failed to receive remote media: ${err.message}`);
       }
     },
     [emitWithAck, ensureRemoteStream, removeRemotePeer]
   );
+
+  const queueOrConsumeProducer = useCallback(
+    async ({ producerId, peerId }) => {
+      if (!producerId) return;
+
+      const canConsumeNow =
+        Boolean(recvTransportRef.current) &&
+        Boolean(deviceRef.current) &&
+        Boolean(roomIdRef.current);
+
+      if (!canConsumeNow) {
+        const alreadyQueued = pendingProducersRef.current.some(
+          (item) => item.producerId === producerId
+        );
+
+        if (!alreadyQueued) {
+          pendingProducersRef.current.push({ producerId, peerId });
+        }
+        return;
+      }
+
+      await consumeProducer(producerId, peerId);
+    },
+    [consumeProducer]
+  );
+
+  const flushPendingProducers = useCallback(async () => {
+    if (
+      !recvTransportRef.current ||
+      !deviceRef.current ||
+      !roomIdRef.current ||
+      pendingProducersRef.current.length === 0
+    ) {
+      return;
+    }
+
+    const queue = [...pendingProducersRef.current];
+    pendingProducersRef.current = [];
+
+    for (const item of queue) {
+      await consumeProducer(item.producerId, item.peerId);
+    }
+  }, [consumeProducer]);
 
   const createSendTransport = useCallback(
     async (activeRoomId) => {
@@ -334,6 +379,7 @@ export function useWebRTC() {
     }
 
     consumedProducerIdsRef.current.clear();
+    pendingProducersRef.current = [];
     remoteMediaStreamsRef.current = {};
     deviceRef.current = null;
   }, []);
@@ -374,8 +420,7 @@ export function useWebRTC() {
     });
 
     socket.on("new-producer", async ({ producerId, peerId }) => {
-      if (!producerId) return;
-      await consumeProducer(producerId, peerId);
+      await queueOrConsumeProducer({ producerId, peerId });
     });
 
     socket.on("producer-closed", ({ producerId, peerId }) => {
@@ -418,7 +463,7 @@ export function useWebRTC() {
     return () => {
       socket.disconnect();
     };
-  }, [consumeProducer, ensureRemoteStream, removeRemotePeer]);
+  }, [ensureRemoteStream, queueOrConsumeProducer, removeRemotePeer]);
 
   const startCall = useCallback(
     async (room, userName) => {
@@ -481,6 +526,7 @@ export function useWebRTC() {
         await createSendTransport(room);
         await createRecvTransport(room);
         await produceLocalTracks();
+        await flushPendingProducers();
 
         const peers = Array.isArray(joinResult.peers) ? joinResult.peers : [];
         if (peers.length > 0) {
@@ -503,6 +549,8 @@ export function useWebRTC() {
           await consumeProducer(producer.producerId, producer.peerId);
         }
 
+        await flushPendingProducers();
+
         emitLocalMediaState({
           videoEnabled: true,
           audioEnabled: true,
@@ -524,6 +572,7 @@ export function useWebRTC() {
       emitLocalMediaState,
       emitWithAck,
       ensureRemoteStream,
+      flushPendingProducers,
       produceLocalTracks,
     ]
   );
