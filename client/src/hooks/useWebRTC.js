@@ -127,6 +127,20 @@ export function useWebRTC() {
           targetStream.addTrack(consumer.track);
         }
 
+        // Trigger React render when tracks are added to an existing stream object.
+        setRemoteStreams((prev) => {
+          const exists = prev.some((p) => p.peerId === ownerPeerId);
+          if (!exists) {
+            return [...prev, { peerId: ownerPeerId, stream: targetStream }];
+          }
+
+          return prev.map((p) =>
+            p.peerId === ownerPeerId
+              ? { ...p, stream: targetStream }
+              : p
+          );
+        });
+
         consumersRef.current.set(consumer.id, {
           consumer,
           producerId,

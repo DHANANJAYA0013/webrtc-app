@@ -23,8 +23,48 @@ export default function Room({
 }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [videosPerPage, setVideosPerPage] = useState(9);
   const processedMessageCountRef = useRef(0);
   const peerCount = remoteStreams.length;
+
+  useEffect(() => {
+    const updateVideosPerPage = () => {
+      const width = window.innerWidth;
+
+      if (width < 640) {
+        setVideosPerPage(4);
+        return;
+      }
+
+      if (width < 1024) {
+        setVideosPerPage(6);
+        return;
+      }
+
+      setVideosPerPage(9);
+    };
+
+    updateVideosPerPage();
+    window.addEventListener("resize", updateVideosPerPage);
+
+    return () => {
+      window.removeEventListener("resize", updateVideosPerPage);
+    };
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(peerCount / videosPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (safeCurrentPage - 1) * videosPerPage;
+  const pageEndIndex = pageStartIndex + videosPerPage;
+  const paginatedRemoteStreams = remoteStreams.slice(pageStartIndex, pageEndIndex);
+  const visiblePeerCount = paginatedRemoteStreams.length;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (!Array.isArray(chatMessages)) return;
@@ -56,11 +96,11 @@ export default function Room({
   };
 
   const gridClass =
-    peerCount <= 1
+    visiblePeerCount <= 1
       ? "grid-cols-1"
-      : peerCount <= 4
+      : visiblePeerCount <= 4
       ? "grid-cols-2"
-      : peerCount <= 9
+      : visiblePeerCount <= 9
       ? "grid-cols-3"
       : "grid-cols-3";
 
@@ -126,18 +166,46 @@ export default function Room({
 
             </div>
           ) : (
-            <div className={`grid h-full w-full auto-rows-fr ${gridClass} gap-4`}>
-              {remoteStreams.map(({ peerId, stream }) => (
-                <VideoTile
-                  key={peerId}
-                  stream={stream}
-                  label={peerNames?.[peerId] || "Guest"}
-                  peerId={peerId}
-                  isVideoEnabled={mediaStateByPeer[peerId]?.videoEnabled ?? true}
-                  isAudioEnabled={mediaStateByPeer[peerId]?.audioEnabled ?? true}
-                  isScreenSharing={mediaStateByPeer[peerId]?.isScreenSharing ?? false}
-                />
-              ))}
+            <div className="flex h-full flex-col gap-3">
+              <div className={`grid min-h-0 flex-1 w-full auto-rows-fr ${gridClass} gap-4`}>
+                {paginatedRemoteStreams.map(({ peerId, stream }) => (
+                  <VideoTile
+                    key={peerId}
+                    stream={stream}
+                    label={peerNames?.[peerId] || "Guest"}
+                    peerId={peerId}
+                    isVideoEnabled={mediaStateByPeer[peerId]?.videoEnabled ?? true}
+                    isAudioEnabled={mediaStateByPeer[peerId]?.audioEnabled ?? true}
+                    isScreenSharing={mediaStateByPeer[peerId]?.isScreenSharing ?? false}
+                  />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/70 px-3 py-2 text-xs text-gray-300 sm:text-sm">
+                  <button
+                    type="button"
+                    className="rounded-md border border-gray-700 px-3 py-1 disabled:opacity-40"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safeCurrentPage === 1}
+                  >
+                    Prev
+                  </button>
+
+                  <span>
+                    Page {safeCurrentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="rounded-md border border-gray-700 px-3 py-1 disabled:opacity-40"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

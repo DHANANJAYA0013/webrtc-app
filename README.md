@@ -3,8 +3,9 @@
 A production-ready, multi-user video calling application built with:
 - **Frontend**: React 18 + Vite + Socket.io-client
 - **Backend**: Node.js + Express + Socket.io
-- **WebRTC**: RTCPeerConnection with Google STUN servers
-- **Signaling**: Full offer/answer/ICE exchange over Socket.io
+- **WebRTC**: mediasoup-client (SFU consumers/producers)
+- **SFU**: mediasoup Worker + Router + WebRtcTransport
+- **Signaling**: Socket.io events for transport/producer/consumer lifecycle
 
 ---
 
@@ -39,24 +40,25 @@ nexmeet-webrtc/
 
 ## How It Works
 
-### Signaling Flow (via Socket.io)
+### SFU Signaling Flow (via Socket.io)
 
 ```
-User A joins room
-  → server sends room-peers (empty list)
+User joins room
+  → server returns router RTP capabilities
 
-User B joins same room
-  → server sends room-peers [A] to B
-  → server sends peer-joined to A
+Client creates send transport + recv transport
+  → client connects transports via DTLS
 
-B creates RTCPeerConnection, sends offer → A
-A responds with answer → B
-Both exchange ICE candidates
-Peer-to-peer video stream established ✓
+Client produces local audio/video once
+  → SFU router forwards to all subscribed consumers
+
+When a new producer appears
+  → peers create consumer for that producer
+  → consumer is resumed and media starts
 ```
 
-### Multi-Peer Mesh
-Each new user creates a direct peer connection with **every** existing participant. For N users there are N*(N-1)/2 peer connections (mesh topology). This works well for ≤ 6 users; for larger groups consider an SFU (e.g. mediasoup, LiveKit).
+### Why SFU
+Each participant uploads one outbound stream to the SFU, and receives forwarded streams from other participants. This avoids mesh growth ($N*(N-1)/2$ connections) and scales far better for medium/large rooms.
 
 ---
 
@@ -105,7 +107,11 @@ Open **two or more browser tabs** (or different browsers/devices on the same net
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` (server) | `4000` | Signaling server port |
+| `PORT` (server) | `4000` | SFU server port |
+| `MEDIASOUP_LISTEN_IP` (server) | `0.0.0.0` | Bind IP for mediasoup WebRTC transports |
+| `MEDIASOUP_ANNOUNCED_IP` (server) | *(unset)* | Public IP/domain announced to clients (required on cloud/NAT) |
+| `MEDIASOUP_MIN_PORT` (server) | `40000` | Lowest UDP/TCP port for mediasoup RTP |
+| `MEDIASOUP_MAX_PORT` (server) | `49999` | Highest UDP/TCP port for mediasoup RTP |
 | `VITE_SIGNALING_SERVER` (client) | `http://localhost:4000` | Signaling server URL |
 
 ---
@@ -148,10 +154,10 @@ Set `VITE_SIGNALING_SERVER` in Vercel's environment variables.
 
 ## Scaling Beyond 6 Users
 
-For large rooms, replace the mesh topology with a **Selective Forwarding Unit (SFU)**:
-- [LiveKit](https://livekit.io) — open source, self-hostable
-- [mediasoup](https://mediasoup.org) — low-level, highly customizable
-- [Daily.co](https://daily.co) — managed SFU API
+NexMeet now uses a mediasoup SFU baseline. For production 10-100 user rooms, ensure:
+- Server has enough CPU and outbound bandwidth.
+- UDP port range (`MEDIASOUP_MIN_PORT`..`MEDIASOUP_MAX_PORT`) is open in firewall/security groups.
+- `MEDIASOUP_ANNOUNCED_IP` is set to a routable public address.
 
 ---
 
