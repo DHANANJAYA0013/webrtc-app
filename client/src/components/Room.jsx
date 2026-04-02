@@ -184,7 +184,7 @@ export default function Room({
       <main className="relative flex flex-1 min-h-0 overflow-hidden">
 
         {/* VIDEO AREA */}
-        <section className="flex-1 min-w-0 min-h-0 p-4 pb-28 sm:p-6 sm:pb-32 md:pb-6 overflow-hidden">
+        <section className="flex-1 min-w-0 min-h-0 p-4 pb-36 sm:p-6 sm:pb-32 md:pb-6 overflow-hidden">
 
           {peerCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
