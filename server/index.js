@@ -26,6 +26,12 @@ const io = new Server(server, {
   transports: ["websocket", "polling"],
 });
 
+const isProduction = process.env.NODE_ENV === "production";
+const listenIp = process.env.MEDIASOUP_LISTEN_IP || (isProduction ? "0.0.0.0" : "127.0.0.1");
+const announcedIp =
+  process.env.MEDIASOUP_ANNOUNCED_IP ||
+  (listenIp === "0.0.0.0" ? "127.0.0.1" : listenIp);
+
 const mediasoupConfig = {
   worker: {
     rtcMinPort: Number(process.env.MEDIASOUP_MIN_PORT || 40000),
@@ -65,8 +71,8 @@ const mediasoupConfig = {
   webRtcTransport: {
     listenIps: [
       {
-        ip: process.env.MEDIASOUP_LISTEN_IP || "0.0.0.0",
-        announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP || undefined,
+        ip: listenIp,
+        announcedIp,
       },
     ],
     enableUdp: true,
@@ -266,6 +272,10 @@ io.on("connection", (socket) => {
         name: participantName,
       });
 
+      console.log(
+        `[join-room] room=${roomId} socket=${socket.id} peers=${room.peers.size} existingProducers=${existingProducers.length}`
+      );
+
       callback({
         peers: peerList,
         existingProducers,
@@ -384,6 +394,10 @@ io.on("connection", (socket) => {
           kind,
         });
 
+        console.log(
+          `[produce] room=${peer.roomId} socket=${socket.id} producer=${producer.id} kind=${kind}`
+        );
+
         callback({ id: producer.id });
       } catch (err) {
         console.error("produce error", err);
@@ -429,6 +443,10 @@ io.on("connection", (socket) => {
           },
         });
 
+        console.log(
+          `[consume] room=${roomId} socket=${socket.id} consumer=${consumer.id} producer=${producerId} owner=${producerOwner} kind=${consumer.kind}`
+        );
+
         peer.consumers.set(consumer.id, consumer);
 
         consumer.on("transportclose", () => {
@@ -469,6 +487,7 @@ io.on("connection", (socket) => {
       }
 
       await consumer.resume();
+      console.log(`[resume-consumer] socket=${socket.id} consumer=${consumerId}`);
       callback({ resumed: true });
     } catch (err) {
       console.error("resume-consumer error", err);
@@ -538,8 +557,15 @@ const PORT = process.env.PORT || 4000;
 async function start() {
   worker = await createWorker();
 
+  if (isProduction && !process.env.MEDIASOUP_ANNOUNCED_IP) {
+    console.warn(
+      "MEDIASOUP_ANNOUNCED_IP is not set in production. Remote media may fail across devices/networks."
+    );
+  }
+
   server.listen(PORT, () => {
     console.log("SFU server running on port", PORT);
+    console.log(`mediasoup transport listenIp=${listenIp} announcedIp=${announcedIp}`);
   });
 }
 
