@@ -47,7 +47,7 @@ export default function VideoTile({
           ref={videoRef}
           autoPlay
           playsInline
-          muted={isLocal}
+          muted
           className="video-el"
         />
       ) : (

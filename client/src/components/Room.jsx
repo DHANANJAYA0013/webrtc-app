@@ -158,8 +158,8 @@ export default function Room({
 
       {/* LOCAL VIDEO */}
       <div
-        className={`fixed bottom-24 z-20 hidden w-60 rounded-xl overflow-hidden border border-gray-700 shadow-xl transition-all duration-200 sm:block ${
-          isChatOpen ? "right-[21.5rem]" : "right-6"
+        className={`fixed bottom-24 right-3 z-20 w-28 rounded-xl overflow-hidden border border-gray-700 shadow-xl transition-all duration-200 sm:w-60 ${
+          isChatOpen ? "md:right-[21.5rem]" : "md:right-6"
         }`}
       >
         <VideoTile

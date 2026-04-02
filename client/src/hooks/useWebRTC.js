@@ -45,10 +45,38 @@ export function useWebRTC() {
 
   const socketRef = useRef(null);
   const peerConnectionsRef = useRef({});
+  const pendingIceCandidatesRef = useRef({});
   const localStreamRef = useRef(null);
   const cameraVideoTrackRef = useRef(null);
   const activeVideoTrackRef = useRef(null);
   const screenVideoTrackRef = useRef(null);
+
+  const queueIceCandidate = useCallback((peerId, candidate) => {
+    if (!peerId || !candidate) return;
+
+    if (!pendingIceCandidatesRef.current[peerId]) {
+      pendingIceCandidatesRef.current[peerId] = [];
+    }
+
+    pendingIceCandidatesRef.current[peerId].push(candidate);
+  }, []);
+
+  const flushIceCandidates = useCallback(async (peerId, pc) => {
+    if (!peerId || !pc) return;
+
+    const queued = pendingIceCandidatesRef.current[peerId] || [];
+    if (queued.length === 0) return;
+
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.log("Queued ICE add error", err);
+      }
+    }
+
+    delete pendingIceCandidatesRef.current[peerId];
+  }, []);
 
   // ================= SOCKET =================
 
@@ -100,6 +128,7 @@ export function useWebRTC() {
       await pc.setRemoteDescription(
         new RTCSessionDescription(offer)
       );
+      await flushIceCandidates(from, pc);
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -117,11 +146,19 @@ export function useWebRTC() {
       await pc.setRemoteDescription(
         new RTCSessionDescription(answer)
       );
+      await flushIceCandidates(from, pc);
     });
 
     socket.on("ice-candidate", async ({ from, candidate }) => {
-      const pc = peerConnectionsRef.current[from];
-      if (!pc) return;
+      let pc = peerConnectionsRef.current[from];
+      if (!pc) {
+        pc = createPeer(from, false);
+      }
+
+      if (!pc.remoteDescription) {
+        queueIceCandidate(from, candidate);
+        return;
+      }
 
       try {
         await pc.addIceCandidate(
@@ -283,6 +320,8 @@ export function useWebRTC() {
     setRemoteStreams((prev) =>
       prev.filter((p) => p.peerId !== peerId)
     );
+
+    delete pendingIceCandidatesRef.current[peerId];
   }, []);
 
   const replaceVideoTrack = useCallback((nextTrack) => {
@@ -327,8 +366,10 @@ export function useWebRTC() {
 
   const startCall = useCallback(async (room, userName) => {
     try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: "user",
             width: { ideal: 1280 },
@@ -341,6 +382,12 @@ export function useWebRTC() {
             autoGainControl: true,
           },
         });
+      } catch (mediaErr) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+      }
 
       localStreamRef.current = stream;
       cameraVideoTrackRef.current = stream.getVideoTracks()[0] || null;
