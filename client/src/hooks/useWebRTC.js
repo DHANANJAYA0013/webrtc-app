@@ -45,6 +45,7 @@ export function useWebRTC() {
 
   const socketRef = useRef(null);
   const peerConnectionsRef = useRef({});
+  const remoteMediaStreamsRef = useRef({});
   const pendingIceCandidatesRef = useRef({});
   const localStreamRef = useRef(null);
   const cameraVideoTrackRef = useRef(null);
@@ -215,8 +216,16 @@ export function useWebRTC() {
     }
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
+    const remoteStream = new MediaStream();
 
     peerConnectionsRef.current[peerId] = pc;
+    remoteMediaStreamsRef.current[peerId] = remoteStream;
+
+    setRemoteStreams((prev) => {
+      const exists = prev.some((p) => p.peerId === peerId);
+      if (exists) return prev;
+      return [...prev, { peerId, stream: remoteStream }];
+    });
 
     // add local tracks
     if (localStreamRef.current) {
@@ -247,50 +256,30 @@ export function useWebRTC() {
       }
     };
 
-    // receive stream
+    // receive tracks into a stable per-peer stream
     pc.ontrack = (e) => {
-      const incomingStream = e.streams?.[0] || null;
+      const targetStream =
+        remoteMediaStreamsRef.current[peerId] || remoteStream;
+
+      const hasTrack = targetStream
+        .getTracks()
+        .some((track) => track.id === e.track.id);
+
+      if (!hasTrack) {
+        targetStream.addTrack(e.track);
+      }
 
       setRemoteStreams((prev) => {
-        const exist = prev.find(
-          (p) => p.peerId === peerId
+        const exists = prev.some((p) => p.peerId === peerId);
+        if (!exists) {
+          return [...prev, { peerId, stream: targetStream }];
+        }
+
+        return prev.map((p) =>
+          p.peerId === peerId
+            ? { ...p, stream: targetStream }
+            : p
         );
-
-        // Some mobile browsers dispatch ontrack without e.streams populated.
-        // Build/merge a stream from individual tracks to keep remote video visible.
-        if (!incomingStream && e.track) {
-          if (exist) {
-            const existingStream = exist.stream;
-            const hasTrack = existingStream
-              .getTracks()
-              .some((track) => track.id === e.track.id);
-
-            if (!hasTrack) {
-              existingStream.addTrack(e.track);
-            }
-
-            return prev.map((p) =>
-              p.peerId === peerId
-                ? { ...p, stream: existingStream }
-                : p
-            );
-          }
-
-          return [
-            ...prev,
-            { peerId, stream: new MediaStream([e.track]) },
-          ];
-        }
-
-        if (exist) {
-          return prev.map((p) =>
-            p.peerId === peerId
-              ? { peerId, stream: incomingStream }
-              : p
-          );
-        }
-
-        return [...prev, { peerId, stream: incomingStream }];
       });
     };
 
@@ -321,6 +310,7 @@ export function useWebRTC() {
       prev.filter((p) => p.peerId !== peerId)
     );
 
+    delete remoteMediaStreamsRef.current[peerId];
     delete pendingIceCandidatesRef.current[peerId];
   }, []);
 

@@ -23,18 +23,31 @@ export default function VideoTile({
     if (!videoRef.current || !stream || !shouldShowVideo) return;
 
     const el = videoRef.current;
+    el.muted = isLocal;
 
     if (el.srcObject !== stream) {
       el.srcObject = stream;
     }
 
-    const playPromise = el.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {
-        // Mobile browsers can reject autoplay momentarily until media is ready.
-      });
+    const tryPlay = () => {
+      const playPromise = el.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {
+          // Some browsers require additional readiness/user interaction.
+        });
+      }
+    };
+
+    if (el.readyState >= 1) {
+      tryPlay();
+    } else {
+      el.onloadedmetadata = tryPlay;
     }
-  }, [stream, shouldShowVideo]);
+
+    return () => {
+      el.onloadedmetadata = null;
+    };
+  }, [isLocal, stream, shouldShowVideo]);
 
   return (
     <div
@@ -47,7 +60,7 @@ export default function VideoTile({
           ref={videoRef}
           autoPlay
           playsInline
-          muted
+          muted={isLocal}
           className="video-el"
         />
       ) : (
