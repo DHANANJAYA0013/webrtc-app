@@ -301,6 +301,36 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("list-producers", ({ roomId }, callback = () => {}) => {
+    try {
+      const room = rooms.get(roomId);
+      if (!room) {
+        callback({ producers: [] });
+        return;
+      }
+
+      const producers = [];
+      room.peers.forEach((peerId) => {
+        if (peerId === socket.id) return;
+        const peer = getPeer(peerId);
+        if (!peer) return;
+
+        peer.producers.forEach((producer) => {
+          producers.push({
+            producerId: producer.id,
+            peerId,
+            kind: producer.kind,
+          });
+        });
+      });
+
+      callback({ producers });
+    } catch (err) {
+      console.error("list-producers error", err);
+      callback({ error: "Failed to list producers" });
+    }
+  });
+
   socket.on(
     "create-webRtc-transport",
     async ({ roomId, direction }, callback = () => {}) => {

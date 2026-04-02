@@ -231,6 +231,26 @@ export function useWebRTC() {
     }
   }, [consumeProducer]);
 
+  const syncRoomProducers = useCallback(async () => {
+    const activeRoomId = roomIdRef.current;
+    if (!activeRoomId) return;
+
+    try {
+      const { producers = [] } = await emitWithAck("list-producers", {
+        roomId: activeRoomId,
+      });
+
+      for (const producer of producers) {
+        await queueOrConsumeProducer({
+          producerId: producer.producerId,
+          peerId: producer.peerId,
+        });
+      }
+    } catch (err) {
+      console.log("syncRoomProducers error", err);
+    }
+  }, [emitWithAck, queueOrConsumeProducer]);
+
   const createSendTransport = useCallback(
     async (activeRoomId) => {
       const { params } = await emitWithAck("create-webRtc-transport", {
@@ -423,6 +443,7 @@ export function useWebRTC() {
         [peerId]: name || "Guest",
       }));
       ensureRemoteStream(peerId);
+      syncRoomProducers();
     });
 
     socket.on("new-producer", async ({ producerId, peerId }) => {
@@ -469,7 +490,7 @@ export function useWebRTC() {
     return () => {
       socket.disconnect();
     };
-  }, [ensureRemoteStream, queueOrConsumeProducer, removeRemotePeer]);
+  }, [ensureRemoteStream, queueOrConsumeProducer, removeRemotePeer, syncRoomProducers]);
 
   const startCall = useCallback(
     async (room, userName) => {
@@ -558,6 +579,7 @@ export function useWebRTC() {
         }
 
         await flushPendingProducers();
+        await syncRoomProducers();
 
         emitLocalMediaState({
           videoEnabled: true,
@@ -582,6 +604,7 @@ export function useWebRTC() {
       ensureRemoteStream,
       flushPendingProducers,
       produceLocalTracks,
+      syncRoomProducers,
     ]
   );
 
@@ -646,11 +669,11 @@ export function useWebRTC() {
 
     setIsAudioEnabled(next);
     emitLocalMediaState({
-      videoEnabled: isVideoEnabled,
+      videoEnabled: isVideoEnabled && isVideoSharingEnabled,
       audioEnabled: next,
       isScreenSharing,
     });
-  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled]);
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, isVideoSharingEnabled]);
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;

@@ -147,7 +147,7 @@ export default function Room({
           <button
             type="button"
             onClick={onToggleVideoSharing}
-            className={`rounded-full border px-3 py-1 font-medium transition-colors ${
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full border font-medium transition-colors sm:h-auto sm:w-auto sm:px-3 sm:py-1 ${
               isVideoSharingEnabled
                 ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
                 : "border-amber-400/40 bg-amber-500/15 text-amber-200"
@@ -157,8 +157,24 @@ export default function Room({
                 ? "Stop sharing your video with other participants"
                 : "Share your video with other participants"
             }
+            aria-label={isVideoSharingEnabled ? "Video share on" : "Video share off"}
           >
-            {isVideoSharingEnabled ? "Video Share: On" : "Video Share: Off"}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 8.5C4 7.67 4.67 7 5.5 7H12.5C13.33 7 14 7.67 14 8.5V15.5C14 16.33 13.33 17 12.5 17H5.5C4.67 17 4 16.33 4 15.5V8.5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M14 10L20 7.8V16.2L14 14V10Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="hidden sm:inline sm:ml-2">
+              {isVideoSharingEnabled ? "Video Share: On" : "Video Share: Off"}
+            </span>
           </button>
 
         </div>
