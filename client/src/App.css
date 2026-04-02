@@ -673,4 +673,13 @@ body {
     height: 40px;
     font-size: 0.72rem;
   }
+
+  .chat-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .chat-input-row {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
 }

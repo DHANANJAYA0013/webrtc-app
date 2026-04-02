@@ -11,12 +11,6 @@ export default function VideoTile({
 }) {
   const videoRef = useRef(null);
 
-  useEffect(() => {
-    if (videoRef.current && stream && isVideoEnabled) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream, isVideoEnabled]);
-
   const shortId = peerId ? peerId.slice(0, 6) : null;
   const videoTrack = stream?.getVideoTracks?.()[0];
   const trackSettings = videoTrack?.getSettings?.() || {};
@@ -24,6 +18,23 @@ export default function VideoTile({
     Boolean(trackSettings.displaySurface) ||
     /screen|display|window/i.test(videoTrack?.label || "");
   const shouldShowVideo = isVideoEnabled && Boolean(videoTrack);
+
+  useEffect(() => {
+    if (!videoRef.current || !stream || !shouldShowVideo) return;
+
+    const el = videoRef.current;
+
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // Mobile browsers can reject autoplay momentarily until media is ready.
+      });
+    }
+  }, [stream, shouldShowVideo]);
 
   return (
     <div

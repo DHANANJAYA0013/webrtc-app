@@ -65,7 +65,7 @@ export default function Room({
       : "grid-cols-3";
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-white">
+    <div className="flex flex-col h-[100dvh] bg-gray-950 text-white">
 
       {/* HEADER */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800/90 bg-gray-900/95 backdrop-blur">
@@ -145,7 +145,7 @@ export default function Room({
 
         {/* CHAT */}
         {isChatOpen && (
-          <div className="z-30 w-80 shrink-0 border-l border-gray-800 bg-gray-900">
+          <div className="fixed inset-x-0 top-20 bottom-24 z-40 border-y border-gray-800 bg-gray-900 md:static md:inset-auto md:top-auto md:bottom-auto md:z-30 md:w-80 md:shrink-0 md:border-y-0 md:border-l">
             <ChatBox
               isOpen={isChatOpen}
               messages={chatMessages}
@@ -158,7 +158,7 @@ export default function Room({
 
       {/* LOCAL VIDEO */}
       <div
-        className={`fixed bottom-24 z-20 w-60 rounded-xl overflow-hidden border border-gray-700 shadow-xl transition-all duration-200 ${
+        className={`fixed bottom-24 z-20 hidden w-60 rounded-xl overflow-hidden border border-gray-700 shadow-xl transition-all duration-200 sm:block ${
           isChatOpen ? "right-[21.5rem]" : "right-6"
         }`}
       >

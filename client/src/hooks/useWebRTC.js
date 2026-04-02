@@ -3,10 +3,20 @@ import { io } from "socket.io-client";
 
 const ICE_SERVERS = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:openrelay.metered.ca:80",
+      ],
+    },
 
     {
-      urls: "turn:openrelay.metered.ca:80",
+      urls: [
+        "turn:openrelay.metered.ca:80?transport=udp",
+        "turn:openrelay.metered.ca:80?transport=tcp",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+        "turns:openrelay.metered.ca:443?transport=tcp",
+      ],
       username: "openrelayproject",
       credential: "openrelayproject",
     },
@@ -190,24 +200,60 @@ export function useWebRTC() {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        try {
+          pc.restartIce();
+        } catch (err) {
+          console.log("ICE restart failed", err);
+        }
+      }
+    };
+
     // receive stream
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      const incomingStream = e.streams?.[0] || null;
 
       setRemoteStreams((prev) => {
         const exist = prev.find(
           (p) => p.peerId === peerId
         );
 
+        // Some mobile browsers dispatch ontrack without e.streams populated.
+        // Build/merge a stream from individual tracks to keep remote video visible.
+        if (!incomingStream && e.track) {
+          if (exist) {
+            const existingStream = exist.stream;
+            const hasTrack = existingStream
+              .getTracks()
+              .some((track) => track.id === e.track.id);
+
+            if (!hasTrack) {
+              existingStream.addTrack(e.track);
+            }
+
+            return prev.map((p) =>
+              p.peerId === peerId
+                ? { ...p, stream: existingStream }
+                : p
+            );
+          }
+
+          return [
+            ...prev,
+            { peerId, stream: new MediaStream([e.track]) },
+          ];
+        }
+
         if (exist) {
           return prev.map((p) =>
             p.peerId === peerId
-              ? { peerId, stream }
+              ? { peerId, stream: incomingStream }
               : p
           );
         }
 
-        return [...prev, { peerId, stream }];
+        return [...prev, { peerId, stream: incomingStream }];
       });
     };
 
@@ -283,8 +329,17 @@ export function useWebRTC() {
     try {
       const stream =
         await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 24, max: 30 },
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
 
       localStreamRef.current = stream;
