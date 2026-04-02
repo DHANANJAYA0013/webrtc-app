@@ -4,7 +4,9 @@ import { Device } from "mediasoup-client";
 
 const SERVER_URL =
   import.meta.env.VITE_SIGNALING_SERVER ||
-  "https://webrtc-app-pinq.onrender.com";
+  (import.meta.env.DEV
+    ? "http://localhost:4000"
+    : "https://webrtc-app-pinq.onrender.com");
 
 export function useWebRTC() {
   const [localStream, setLocalStream] = useState(null);
@@ -43,7 +45,16 @@ export function useWebRTC() {
         return;
       }
 
+      const timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            `Timed out waiting for '${event}' response. Check that client and server run the same SFU version.`
+          )
+        );
+      }, 8000);
+
       socket.emit(event, payload, (response = {}) => {
+        clearTimeout(timeoutId);
         if (response.error) {
           reject(new Error(response.error));
           return;
@@ -499,7 +510,10 @@ export function useWebRTC() {
         });
       } catch (err) {
         console.log("startCall error", err);
-        setError(err.message || "Failed to start call");
+        setError(
+          err.message ||
+            "Failed to start call. Verify both users connect to the same SFU signaling server URL."
+        );
         setIsInCall(false);
       }
     },
