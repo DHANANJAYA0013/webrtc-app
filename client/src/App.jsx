@@ -16,11 +16,13 @@ export default function App() {
     roomId,
     error,
     isVideoEnabled,
+    isVideoSharingEnabled,
     isAudioEnabled,
     isScreenSharing,
     startCall,
     sendChatMessage,
     toggleVideo,
+    toggleVideoSharing,
     toggleAudio,
     toggleScreenShare,
     leaveCall,
@@ -50,9 +52,11 @@ export default function App() {
           selfName={selfName}
           mediaStateByPeer={mediaStateByPeer}
           isVideoEnabled={isVideoEnabled}
+          isVideoSharingEnabled={isVideoSharingEnabled}
           isAudioEnabled={isAudioEnabled}
           isScreenSharing={isScreenSharing}
           onToggleVideo={toggleVideo}
+          onToggleVideoSharing={toggleVideoSharing}
           onToggleAudio={toggleAudio}
           onToggleScreenShare={toggleScreenShare}
           onLeave={() => {

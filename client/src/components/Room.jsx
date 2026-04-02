@@ -15,9 +15,11 @@ export default function Room({
   selfId,
   mediaStateByPeer,
   isVideoEnabled,
+  isVideoSharingEnabled,
   isAudioEnabled,
   isScreenSharing,
   onToggleVideo,
+  onToggleVideoSharing,
   onToggleAudio,
   onToggleScreenShare,
 }) {
@@ -127,7 +129,7 @@ export default function Room({
         </div>
 
         {/* ROOM INFO */}
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
 
           <span className="flex items-center gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]">
             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
@@ -142,6 +144,23 @@ export default function Room({
             {peerCount + 1} participant{peerCount !== 0 ? "s" : ""}
           </span>
 
+          <button
+            type="button"
+            onClick={onToggleVideoSharing}
+            className={`rounded-full border px-3 py-1 font-medium transition-colors ${
+              isVideoSharingEnabled
+                ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
+                : "border-amber-400/40 bg-amber-500/15 text-amber-200"
+            }`}
+            title={
+              isVideoSharingEnabled
+                ? "Stop sharing your video with other participants"
+                : "Share your video with other participants"
+            }
+          >
+            {isVideoSharingEnabled ? "Video Share: On" : "Video Share: Off"}
+          </button>
+
         </div>
       </header>
 
@@ -149,7 +168,7 @@ export default function Room({
       <main className="relative flex flex-1 min-h-0 overflow-hidden">
 
         {/* VIDEO AREA */}
-        <section className="flex-1 min-w-0 min-h-0 p-6 overflow-hidden">
+        <section className="flex-1 min-w-0 min-h-0 p-4 pb-28 sm:p-6 sm:pb-32 md:pb-6 overflow-hidden">
 
           {peerCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">

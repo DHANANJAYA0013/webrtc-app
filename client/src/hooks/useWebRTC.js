@@ -17,6 +17,7 @@ export function useWebRTC() {
   const [chatMessages, setChatMessages] = useState([]);
   const [mediaStateByPeer, setMediaStateByPeer] = useState({});
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isVideoSharingEnabled, setIsVideoSharingEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [selfId, setSelfId] = useState("");
@@ -37,6 +38,7 @@ export function useWebRTC() {
   const cameraVideoTrackRef = useRef(null);
   const activeVideoTrackRef = useRef(null);
   const screenVideoTrackRef = useRef(null);
+  const videoSharingEnabledRef = useRef(true);
 
   const emitWithAck = useCallback((event, payload = {}) => {
     return new Promise((resolve, reject) => {
@@ -308,6 +310,10 @@ export function useWebRTC() {
         track: videoTrack,
         appData: { source: "camera" },
       });
+
+      if (!videoSharingEnabledRef.current) {
+        producersRef.current.video.pause();
+      }
     }
   }, []);
 
@@ -507,8 +513,10 @@ export function useWebRTC() {
         setPeerNames({});
         setMediaStateByPeer({});
         setIsVideoEnabled(true);
+        setIsVideoSharingEnabled(true);
         setIsAudioEnabled(true);
         setIsScreenSharing(false);
+        videoSharingEnabledRef.current = true;
 
         const joinResult = await emitWithAck("join-room", {
           roomId: room,
@@ -603,11 +611,33 @@ export function useWebRTC() {
 
     setIsVideoEnabled(next);
     emitLocalMediaState({
-      videoEnabled: next,
+      videoEnabled: next && isVideoSharingEnabled,
       audioEnabled: isAudioEnabled,
       isScreenSharing,
     });
-  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled]);
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, isVideoSharingEnabled]);
+
+  const toggleVideoSharing = useCallback(() => {
+    const next = !isVideoSharingEnabled;
+    const videoProducer = producersRef.current.video;
+
+    if (videoProducer) {
+      if (next) {
+        videoProducer.resume();
+      } else {
+        videoProducer.pause();
+      }
+    }
+
+    videoSharingEnabledRef.current = next;
+    setIsVideoSharingEnabled(next);
+
+    emitLocalMediaState({
+      videoEnabled: isVideoEnabled && next,
+      audioEnabled: isAudioEnabled,
+      isScreenSharing,
+    });
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, isVideoSharingEnabled]);
 
   const toggleAudio = useCallback(() => {
     const next = !isAudioEnabled;
@@ -639,11 +669,11 @@ export function useWebRTC() {
 
     setIsScreenSharing(false);
     emitLocalMediaState({
-      videoEnabled: isVideoEnabled,
+      videoEnabled: isVideoEnabled && isVideoSharingEnabled,
       audioEnabled: isAudioEnabled,
       isScreenSharing: false,
     });
-  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, replaceVideoTrack]);
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, isVideoSharingEnabled, replaceVideoTrack]);
 
   const startScreenShare = useCallback(async () => {
     if (isScreenSharing) return;
@@ -666,14 +696,14 @@ export function useWebRTC() {
       setIsScreenSharing(true);
 
       emitLocalMediaState({
-        videoEnabled: isVideoEnabled,
+        videoEnabled: isVideoEnabled && isVideoSharingEnabled,
         audioEnabled: isAudioEnabled,
         isScreenSharing: true,
       });
     } catch (err) {
       console.log("Screen share cancelled or failed", err);
     }
-  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, replaceVideoTrack, stopScreenShare]);
+  }, [emitLocalMediaState, isAudioEnabled, isScreenSharing, isVideoEnabled, isVideoSharingEnabled, replaceVideoTrack, stopScreenShare]);
 
   const toggleScreenShare = useCallback(() => {
     if (isScreenSharing) {
@@ -706,8 +736,10 @@ export function useWebRTC() {
     setPeerNames({});
     setMediaStateByPeer({});
     setIsVideoEnabled(true);
+    setIsVideoSharingEnabled(true);
     setIsAudioEnabled(true);
     setIsScreenSharing(false);
+    videoSharingEnabledRef.current = true;
     cameraVideoTrackRef.current = null;
     activeVideoTrackRef.current = null;
   }, [cleanUpMediaRefs]);
@@ -724,11 +756,13 @@ export function useWebRTC() {
     roomId,
     error,
     isVideoEnabled,
+    isVideoSharingEnabled,
     isAudioEnabled,
     isScreenSharing,
     startCall,
     sendChatMessage,
     toggleVideo,
+    toggleVideoSharing,
     toggleAudio,
     toggleScreenShare,
     leaveCall,
