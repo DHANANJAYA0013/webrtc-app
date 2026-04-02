@@ -581,6 +581,15 @@ export function useWebRTC() {
         await flushPendingProducers();
         await syncRoomProducers();
 
+        // Run delayed resyncs to catch late producer availability after joins.
+        setTimeout(() => {
+          syncRoomProducers();
+        }, 1000);
+
+        setTimeout(() => {
+          syncRoomProducers();
+        }, 3000);
+
         emitLocalMediaState({
           videoEnabled: true,
           audioEnabled: true,

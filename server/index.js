@@ -467,7 +467,7 @@ io.on("connection", (socket) => {
         const consumer = await transport.consume({
           producerId,
           rtpCapabilities,
-          paused: true,
+          paused: false,
           appData: {
             peerId: producerOwner,
           },
@@ -516,7 +516,9 @@ io.on("connection", (socket) => {
         return;
       }
 
-      await consumer.resume();
+      if (consumer.paused) {
+        await consumer.resume();
+      }
       console.log(`[resume-consumer] socket=${socket.id} consumer=${consumerId}`);
       callback({ resumed: true });
     } catch (err) {

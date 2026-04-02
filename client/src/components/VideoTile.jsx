@@ -23,10 +23,11 @@ export default function VideoTile({
     if (!videoRef.current || !stream || !shouldShowVideo) return;
 
     const el = videoRef.current;
-    el.muted = isLocal;
+    const videoOnlyStream = new MediaStream(stream.getVideoTracks());
+    el.muted = true;
 
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
+    if (el.srcObject !== videoOnlyStream) {
+      el.srcObject = videoOnlyStream;
     }
 
     const tryPlay = () => {
@@ -47,7 +48,7 @@ export default function VideoTile({
     return () => {
       el.onloadedmetadata = null;
     };
-  }, [isLocal, stream, shouldShowVideo]);
+  }, [stream, shouldShowVideo]);
 
   return (
     <div
@@ -60,7 +61,9 @@ export default function VideoTile({
           ref={videoRef}
           autoPlay
           playsInline
-          muted={isLocal}
+          muted
+          controls={false}
+          disablePictureInPicture
           className="video-el"
         />
       ) : (
